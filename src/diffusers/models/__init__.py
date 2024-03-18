@@ -49,7 +49,9 @@ if is_torch_available():
     _import_structure["unets.unet_spatio_temporal_condition"] = ["UNetSpatioTemporalConditionModel"]
     _import_structure["unets.unet_stable_cascade"] = ["StableCascadeUNet"]
     _import_structure["unets.uvit_2d"] = ["UVit2DModel"]
+    _import_structure["unets.unet_lumiere_spatio_temporal"] = ["LumiereUNetModel"]
     _import_structure["vq_model"] = ["VQModel"]
+
 
 if is_flax_available():
     _import_structure["controlnet_flax"] = ["FlaxControlNetModel"]
@@ -89,6 +91,7 @@ if TYPE_CHECKING or DIFFUSERS_SLOW_IMPORT:
             UNetMotionModel,
             UNetSpatioTemporalConditionModel,
             UVit2DModel,
+            LumiereUNetModel,
         )
         from .vq_model import VQModel
 

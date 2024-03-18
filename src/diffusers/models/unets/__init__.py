@@ -12,6 +12,7 @@ if is_torch_available():
     from .unet_spatio_temporal_condition import UNetSpatioTemporalConditionModel
     from .unet_stable_cascade import StableCascadeUNet
     from .uvit_2d import UVit2DModel
+    from .unet_lumiere_spatio_temporal import LumiereUNetModel
 
 
 if is_flax_available():
