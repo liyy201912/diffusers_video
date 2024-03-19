@@ -399,27 +399,28 @@ class UNetSpatioTemporalConditionModel(ModelMixin, ConfigMixin, UNet2DConditionL
         batch_size, num_frames = sample.shape[:2]
         timesteps = timesteps.expand(batch_size)
 
-        t_emb = self.time_proj(timesteps)
+        # t_emb = self.time_proj(timesteps)
 
         # `Timesteps` does not contain any weights and will always return f32 tensors
         # but time_embedding might actually be running in fp16. so we need to cast here.
         # there might be better ways to encapsulate this.
-        t_emb = t_emb.to(dtype=sample.dtype)
+        # t_emb = t_emb.to(dtype=sample.dtype)
 
-        emb = self.time_embedding(t_emb)
+        # emb = self.time_embedding(t_emb)
 
-        time_embeds = self.add_time_proj(added_time_ids.flatten())
-        time_embeds = time_embeds.reshape((batch_size, -1))
-        time_embeds = time_embeds.to(emb.dtype)
-        aug_emb = self.add_embedding(time_embeds)
-        emb = emb + aug_emb
+        # time_embeds = self.add_time_proj(added_time_ids.flatten())
+        # time_embeds = time_embeds.reshape((batch_size, -1))
+        # time_embeds = time_embeds.to(emb.dtype)
+        # aug_emb = self.add_embedding(time_embeds)
+        # emb = emb + aug_emb
 
         # Flatten the batch and frames dimensions
         # sample: [batch, frames, channels, height, width] -> [batch * frames, channels, height, width]
         sample = sample.flatten(0, 1)
         # Repeat the embeddings num_video_frames times
         # emb: [batch, channels] -> [batch * frames, channels]
-        emb = emb.repeat_interleave(num_frames, dim=0)
+        # emb = emb.repeat_interleave(num_frames, dim=0)
+        emb = None
         # encoder_hidden_states: [batch, 1, channels] -> [batch * frames, 1, channels]
         encoder_hidden_states = encoder_hidden_states.repeat_interleave(num_frames, dim=0)
 
@@ -481,8 +482,9 @@ class UNetSpatioTemporalConditionModel(ModelMixin, ConfigMixin, UNet2DConditionL
         sample = self.conv_out(sample)
 
         # 7. Reshape back to original shape
-        sample = sample.reshape(batch_size, num_frames, *sample.shape[1:])
-
+        # sample = sample.reshape(batch_size, num_frames, *sample.shape[1:])
+        if torch.jit.is_tracing():
+            return sample
         if not return_dict:
             return (sample,)
 
