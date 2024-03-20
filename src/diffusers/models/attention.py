@@ -298,9 +298,7 @@ class BasicTransformerBlock(nn.Module):
         # Notice that normalization is always applied before the real computation in the following blocks.
         # 0. Self-Attention
         batch_size = hidden_states.shape[0]
-        print("Self", hidden_states.shape)
-        if encoder_hidden_states is not None:
-            print("Cross", encoder_hidden_states.shape)
+        
         if self.norm_type == "ada_norm":
             norm_hidden_states = self.norm1(hidden_states, timestep)
         elif self.norm_type == "ada_norm_zero":

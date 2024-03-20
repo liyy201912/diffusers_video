@@ -10,7 +10,7 @@ from ...utils import BaseOutput, logging
 from ..attention_processor import CROSS_ATTENTION_PROCESSORS, AttentionProcessor, AttnProcessor
 from ..embeddings import TimestepEmbedding, Timesteps
 from ..modeling_utils import ModelMixin
-from .unet_3d_blocks import UNetMidBlockSpatioTemporal, get_down_block, get_up_block
+from .unet_3d_blocks import UNetMidBlockSpatioTemporal, get_down_block, get_up_block, get_mid_block
 
 
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
@@ -84,6 +84,7 @@ class UNetSpatioTemporalConditionModel(ModelMixin, ConfigMixin, UNet2DConditionL
             "CrossAttnUpBlockSpatioTemporal",
             "CrossAttnUpBlockSpatioTemporal",
         ),
+        mid_block_type: str = "UNetMidBlockSpatioTemporal",
         block_out_channels: Tuple[int] = (320, 640, 1280, 1280),
         addition_time_embed_dim: int = 256,
         projection_class_embeddings_input_dim: int = 768,
@@ -182,8 +183,16 @@ class UNetSpatioTemporalConditionModel(ModelMixin, ConfigMixin, UNet2DConditionL
             self.down_blocks.append(down_block)
 
         # mid
-        self.mid_block = UNetMidBlockSpatioTemporal(
-            block_out_channels[-1],
+        # self.mid_block = UNetMidBlockSpatioTemporal(
+        #     block_out_channels[-1],
+        #     temb_channels=blocks_time_embed_dim,
+        #     transformer_layers_per_block=transformer_layers_per_block[-1],
+        #     cross_attention_dim=cross_attention_dim[-1],
+        #     num_attention_heads=num_attention_heads[-1],
+        # )
+        self.mid_block = get_mid_block(
+            mid_block_type=mid_block_type,
+            in_channels=block_out_channels[-1],
             temb_channels=blocks_time_embed_dim,
             transformer_layers_per_block=transformer_layers_per_block[-1],
             cross_attention_dim=cross_attention_dim[-1],
@@ -482,6 +491,9 @@ class UNetSpatioTemporalConditionModel(ModelMixin, ConfigMixin, UNet2DConditionL
 
         # 7. Reshape back to original shape
         sample = sample.reshape(batch_size, num_frames, *sample.shape[1:])
+
+        if torch.jit.is_tracing():
+            return sample
 
         if not return_dict:
             return (sample,)

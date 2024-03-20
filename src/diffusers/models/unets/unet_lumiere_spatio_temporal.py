@@ -195,17 +195,24 @@ class LumiereUNetModel(ModelMixin, ConfigMixin, UNet2DConditionLoadersMixin):
             self.down_blocks.append(down_block)
 
         # mid
-        self.mid_block = get_mid_block(
-            mid_block_type=mid_block_type,
+        self.mid_block = UNetMidBlockSpatioTemporal(
+            block_out_channels[-1],
             temb_channels=blocks_time_embed_dim,
-            time_dim=num_frames,
-            in_channels=block_out_channels[-1],
-            resnet_eps=1e-5,
-            resnet_act_fn="silu",
-            resnet_groups=32,
-            num_attn_inflation_layers=num_attn_inflation_layers,
+            transformer_layers_per_block=transformer_layers_per_block[-1],
+            cross_attention_dim=cross_attention_dim[-1],
             num_attention_heads=num_attention_heads[-1],
         )
+        # self.mid_block = get_mid_block(
+        #     mid_block_type=mid_block_type,
+        #     temb_channels=blocks_time_embed_dim,
+        #     time_dim=num_frames,
+        #     in_channels=block_out_channels[-1],
+        #     resnet_eps=1e-5,
+        #     resnet_act_fn="silu",
+        #     resnet_groups=32,
+        #     num_attn_inflation_layers=num_attn_inflation_layers,
+        #     num_attention_heads=num_attention_heads[-1],
+        # )
 
         # count how many layers upsample the images
         self.num_upsamplers = 0

@@ -722,6 +722,91 @@ class SpatioTemporalResBlock(nn.Module):
         return hidden_states
 
 
+class SpatioResBlock(nn.Module):
+    r"""
+    ### REMOVE TEMPORAL PART ###
+    A SpatioTemporal Resnet block.
+
+    Parameters:
+        in_channels (`int`): The number of channels in the input.
+        out_channels (`int`, *optional*, default to be `None`):
+            The number of output channels for the first conv2d layer. If None, same as `in_channels`.
+        temb_channels (`int`, *optional*, default to `512`): the number of channels in timestep embedding.
+        eps (`float`, *optional*, defaults to `1e-6`): The epsilon to use for the spatial resenet.
+        temporal_eps (`float`, *optional*, defaults to `eps`): The epsilon to use for the temporal resnet.
+        merge_factor (`float`, *optional*, defaults to `0.5`): The merge factor to use for the temporal mixing.
+        merge_strategy (`str`, *optional*, defaults to `learned_with_images`):
+            The merge strategy to use for the temporal mixing.
+        switch_spatial_to_temporal_mix (`bool`, *optional*, defaults to `False`):
+            If `True`, switch the spatial and temporal mixing.
+    """
+
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: Optional[int] = None,
+        temb_channels: int = 512,
+        eps: float = 1e-6,
+        temporal_eps: Optional[float] = None,
+        merge_factor: float = 0.5,
+        merge_strategy="learned_with_images",
+        switch_spatial_to_temporal_mix: bool = False,
+    ):
+        super().__init__()
+
+        self.spatial_res_block = ResnetBlock2D(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            temb_channels=temb_channels,
+            eps=eps,
+        )
+
+        # self.temporal_res_block = TemporalResnetBlock(
+        #     in_channels=out_channels if out_channels is not None else in_channels,
+        #     out_channels=out_channels if out_channels is not None else in_channels,
+        #     temb_channels=temb_channels,
+        #     eps=temporal_eps if temporal_eps is not None else eps,
+        # )
+
+        # self.time_mixer = AlphaBlender(
+        #     alpha=merge_factor,
+        #     merge_strategy=merge_strategy,
+        #     switch_spatial_to_temporal_mix=switch_spatial_to_temporal_mix,
+        # )
+
+    def forward(
+        self,
+        hidden_states: torch.FloatTensor,
+        temb: Optional[torch.FloatTensor] = None,
+        image_only_indicator: Optional[torch.Tensor] = None,
+    ):
+        # num_frames = image_only_indicator.shape[-1]
+        hidden_states = self.spatial_res_block(hidden_states, temb)
+
+        # batch_frames, channels, height, width = hidden_states.shape
+        # batch_size = batch_frames // num_frames
+
+        # hidden_states_mix = (
+        #     hidden_states[None, :].reshape(batch_size, num_frames, channels, height, width).permute(0, 2, 1, 3, 4)
+        # )
+        # hidden_states = (
+        #     hidden_states[None, :].reshape(batch_size, num_frames, channels, height, width).permute(0, 2, 1, 3, 4)
+        # )
+
+        # if temb is not None:
+        #     temb = temb.reshape(batch_size, num_frames, -1)
+
+        # hidden_states = self.temporal_res_block(hidden_states, temb)
+        # hidden_states = self.time_mixer(
+        #     x_spatial=hidden_states_mix,
+        #     x_temporal=hidden_states,
+        #     image_only_indicator=image_only_indicator,
+        # )
+
+        # hidden_states = hidden_states.permute(0, 2, 1, 3, 4).reshape(batch_frames, channels, height, width)
+        return hidden_states
+
+
 class AlphaBlender(nn.Module):
     r"""
     A module to blend spatial and temporal features.
