@@ -444,9 +444,9 @@ class TransformerSpatioModel(nn.Module):
         #     ]
         # )
 
-        time_embed_dim = in_channels * 4
-        self.time_pos_embed = TimestepEmbedding(in_channels, time_embed_dim, out_dim=in_channels)
-        self.time_proj = Timesteps(in_channels, True, 0)
+        # time_embed_dim = in_channels * 4
+        # self.time_pos_embed = TimestepEmbedding(in_channels, time_embed_dim, out_dim=in_channels)
+        # self.time_proj = Timesteps(in_channels, True, 0)
         # self.time_mixer = AlphaBlender(alpha=0.5, merge_strategy="learned_with_images")
 
         # 4. Define output layers
@@ -506,18 +506,18 @@ class TransformerSpatioModel(nn.Module):
         hidden_states = hidden_states.permute(0, 2, 3, 1).reshape(batch_frames, height * width, inner_dim)
         hidden_states = self.proj_in(hidden_states)
 
-        num_frames_emb = torch.arange(num_frames, device=hidden_states.device)
-        num_frames_emb = num_frames_emb.repeat(batch_size, 1)
-        num_frames_emb = num_frames_emb.reshape(-1)
-        t_emb = self.time_proj(num_frames_emb)
+        # num_frames_emb = torch.arange(num_frames, device=hidden_states.device)
+        # num_frames_emb = num_frames_emb.repeat(batch_size, 1)
+        # num_frames_emb = num_frames_emb.reshape(-1)
+        # t_emb = self.time_proj(num_frames_emb)
 
         # `Timesteps` does not contain any weights and will always return f32 tensors
         # but time_embedding might actually be running in fp16. so we need to cast here.
         # there might be better ways to encapsulate this.
-        t_emb = t_emb.to(dtype=hidden_states.dtype)
+        # t_emb = t_emb.to(dtype=hidden_states.dtype)
 
-        emb = self.time_pos_embed(t_emb)
-        emb = emb[:, None, :]
+        # emb = self.time_pos_embed(t_emb)
+        # emb = emb[:, None, :]
 
         # 2. Blocks
         for block in self.transformer_blocks:
