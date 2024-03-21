@@ -92,6 +92,7 @@ class UNetSpatioTemporalConditionModel(ModelMixin, ConfigMixin, UNet2DConditionL
         cross_attention_dim: Union[int, Tuple[int]] = 1024,
         transformer_layers_per_block: Union[int, Tuple[int], Tuple[Tuple]] = 1,
         num_attention_heads: Union[int, Tuple[int]] = (5, 10, 20, 20),
+        spatio_only: bool = False,
         num_frames: int = 25,
     ):
         super().__init__()
@@ -140,8 +141,10 @@ class UNetSpatioTemporalConditionModel(ModelMixin, ConfigMixin, UNet2DConditionL
 
         self.time_embedding = TimestepEmbedding(timestep_input_dim, time_embed_dim)
 
-        self.add_time_proj = Timesteps(addition_time_embed_dim, True, downscale_freq_shift=0)
-        self.add_embedding = TimestepEmbedding(projection_class_embeddings_input_dim, time_embed_dim)
+        self.spatio_only = spatio_only
+        if not spatio_only:
+            self.add_time_proj = Timesteps(addition_time_embed_dim, True, downscale_freq_shift=0)
+            self.add_embedding = TimestepEmbedding(projection_class_embeddings_input_dim, time_embed_dim)
 
         self.down_blocks = nn.ModuleList([])
         self.up_blocks = nn.ModuleList([])
@@ -416,12 +419,13 @@ class UNetSpatioTemporalConditionModel(ModelMixin, ConfigMixin, UNet2DConditionL
         t_emb = t_emb.to(dtype=sample.dtype)
 
         emb = self.time_embedding(t_emb)
-
-        time_embeds = self.add_time_proj(added_time_ids.flatten())
-        time_embeds = time_embeds.reshape((batch_size, -1))
-        time_embeds = time_embeds.to(emb.dtype)
-        aug_emb = self.add_embedding(time_embeds)
-        emb = emb + aug_emb
+        
+        if not self.spatio_only:
+            time_embeds = self.add_time_proj(added_time_ids.flatten())
+            time_embeds = time_embeds.reshape((batch_size, -1))
+            time_embeds = time_embeds.to(emb.dtype)
+            aug_emb = self.add_embedding(time_embeds)
+            emb = emb + aug_emb
 
         # Flatten the batch and frames dimensions
         # sample: [batch, frames, channels, height, width] -> [batch * frames, channels, height, width]
