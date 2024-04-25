@@ -613,8 +613,12 @@ class TemporalResnetBlock(nn.Module):
 
     def forward(self, input_tensor: torch.FloatTensor, temb: torch.FloatTensor) -> torch.FloatTensor:
         hidden_states = input_tensor
+        
+        b, c, t, h, w = hidden_states.shape
+        hidden_states = hidden_states.flatten(-2, -1)
+        hidden_states = self.norm1(hidden_states)
+        hidden_states = hidden_states.reshape(b, c, t, h, w)
 
-        # hidden_states = self.norm1(hidden_states)
         hidden_states = self.nonlinearity(hidden_states)
         hidden_states = self.conv1(hidden_states)
 
@@ -624,7 +628,11 @@ class TemporalResnetBlock(nn.Module):
             temb = temb.permute(0, 2, 1, 3, 4)
             hidden_states = hidden_states + temb
 
-        # hidden_states = self.norm2(hidden_states)
+        b, c, t, h, w = hidden_states.shape
+        hidden_states = hidden_states.flatten(-2, -1)
+        hidden_states = self.norm2(hidden_states)
+        hidden_states = hidden_states.reshape(b, c, t, h, w)
+        
         hidden_states = self.nonlinearity(hidden_states)
         hidden_states = self.dropout(hidden_states)
         hidden_states = self.conv2(hidden_states)

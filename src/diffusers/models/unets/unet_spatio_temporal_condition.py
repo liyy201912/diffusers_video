@@ -142,9 +142,9 @@ class UNetSpatioTemporalConditionModel(ModelMixin, ConfigMixin, UNet2DConditionL
         self.time_embedding = TimestepEmbedding(timestep_input_dim, time_embed_dim)
 
         self.spatio_only = spatio_only
-        if not spatio_only:
-            self.add_time_proj = Timesteps(addition_time_embed_dim, True, downscale_freq_shift=0)
-            self.add_embedding = TimestepEmbedding(projection_class_embeddings_input_dim, time_embed_dim)
+        # if not spatio_only:
+        self.add_time_proj = Timesteps(addition_time_embed_dim, True, downscale_freq_shift=0)
+        self.add_embedding = TimestepEmbedding(projection_class_embeddings_input_dim, time_embed_dim)
 
         self.down_blocks = nn.ModuleList([])
         self.up_blocks = nn.ModuleList([])
@@ -420,12 +420,12 @@ class UNetSpatioTemporalConditionModel(ModelMixin, ConfigMixin, UNet2DConditionL
 
         emb = self.time_embedding(t_emb)
         
-        if not self.spatio_only:
-            time_embeds = self.add_time_proj(added_time_ids.flatten())
-            time_embeds = time_embeds.reshape((batch_size, -1))
-            time_embeds = time_embeds.to(emb.dtype)
-            aug_emb = self.add_embedding(time_embeds)
-            emb = emb + aug_emb
+        # if not self.spatio_only:
+        time_embeds = self.add_time_proj(added_time_ids.flatten())
+        time_embeds = time_embeds.reshape((batch_size, -1))
+        time_embeds = time_embeds.to(emb.dtype)
+        aug_emb = self.add_embedding(time_embeds)
+        emb = emb + aug_emb
 
         # Flatten the batch and frames dimensions
         # sample: [batch, frames, channels, height, width] -> [batch * frames, channels, height, width]
