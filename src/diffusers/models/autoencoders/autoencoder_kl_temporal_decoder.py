@@ -22,7 +22,7 @@ from ...utils.accelerate_utils import apply_forward_hook
 from ..attention_processor import CROSS_ATTENTION_PROCESSORS, AttentionProcessor, AttnProcessor
 from ..modeling_outputs import AutoencoderKLOutput
 from ..modeling_utils import ModelMixin
-from ..unets.unet_3d_blocks import MidBlockTemporalDecoder, UpBlockTemporalDecoder, MidBlockTemporalEncoder
+from ..unets.unet_3d_blocks import MidBlockTemporalDecoder, UpBlockTemporalDecoder, MidBlockTemporalEncoder, DownBlockTemporalEncoder
 from .vae import DecoderOutput, DiagonalGaussianDistribution, Encoder
 
 
@@ -438,7 +438,7 @@ class TemporalEncoder(nn.Module):
 
             is_final_block = i == len(block_out_channels) - 1
             # add DownBlockTemporalEncoder
-            down_block = UpBlockTemporalDecoder(
+            down_block = DownBlockTemporalEncoder(
                 num_layers=self.layers_per_block + 1,
                 in_channels=prev_output_channel,
                 out_channels=output_channel,
@@ -489,7 +489,7 @@ class TemporalEncoder(nn.Module):
 
         sample = self.conv_in(sample)
 
-        upscale_dtype = next(iter(self.up_blocks.parameters())).dtype
+        downscale_dtype = next(iter(self.down_blocks.parameters())).dtype
         if self.training and self.gradient_checkpointing:
 
             def create_custom_forward(module):
@@ -499,6 +499,14 @@ class TemporalEncoder(nn.Module):
                 return custom_forward
 
             if is_torch_version(">=", "1.11.0"):
+                # down
+                for down_block in self.down_blocks:
+                    sample = torch.utils.checkpoint.checkpoint(
+                        create_custom_forward(down_block),
+                        sample,
+                        image_only_indicator,
+                        use_reentrant=False,
+                    )
                 # middle
                 sample = torch.utils.checkpoint.checkpoint(
                     create_custom_forward(self.mid_block),
@@ -506,40 +514,34 @@ class TemporalEncoder(nn.Module):
                     image_only_indicator,
                     use_reentrant=False,
                 )
-                sample = sample.to(upscale_dtype)
+                sample = sample.to(downscale_dtype)
 
-                # up
-                for up_block in self.up_blocks:
+                
+            else:
+                # down
+                for down_block in self.down_blocks:
                     sample = torch.utils.checkpoint.checkpoint(
-                        create_custom_forward(up_block),
+                        create_custom_forward(down_block),
                         sample,
                         image_only_indicator,
-                        use_reentrant=False,
                     )
-            else:
                 # middle
                 sample = torch.utils.checkpoint.checkpoint(
                     create_custom_forward(self.mid_block),
                     sample,
                     image_only_indicator,
                 )
-                sample = sample.to(upscale_dtype)
+                sample = sample.to(downscale_dtype)
 
-                # up
-                for up_block in self.up_blocks:
-                    sample = torch.utils.checkpoint.checkpoint(
-                        create_custom_forward(up_block),
-                        sample,
-                        image_only_indicator,
-                    )
         else:
+            # down
+            for down_block in self.down_blocks:
+                sample = down_block(sample, image_only_indicator=image_only_indicator)
             # middle
             sample = self.mid_block(sample, image_only_indicator=image_only_indicator)
-            sample = sample.to(upscale_dtype)
+            sample = sample.to(downscale_dtype)
 
-            # up
-            for up_block in self.up_blocks:
-                sample = up_block(sample, image_only_indicator=image_only_indicator)
+            
 
         # post-process
         sample = self.conv_norm_out(sample)
@@ -715,7 +717,7 @@ class AutoencoderKLTemporal(ModelMixin, ConfigMixin):
 
     @apply_forward_hook
     def encode(
-        self, x: torch.FloatTensor, return_dict: bool = True
+        self, x: torch.FloatTensor, num_frames: int, return_dict: bool = True
     ) -> Union[AutoencoderKLOutput, Tuple[DiagonalGaussianDistribution]]:
         """
         Encode a batch of images into latents.
@@ -729,7 +731,12 @@ class AutoencoderKLTemporal(ModelMixin, ConfigMixin):
                 The latent representations of the encoded images. If `return_dict` is True, a
                 [`~models.autoencoder_kl.AutoencoderKLOutput`] is returned, otherwise a plain `tuple` is returned.
         """
-        h = self.encoder(x)
+        batch_size, num_frames, channels, height, width = x.size()
+        x = x.reshape(batch_size * num_frames, channels, height, width)
+
+        # batch_size = x.shape[0] // num_frames
+        image_only_indicator = torch.zeros(batch_size, num_frames, dtype=x.dtype, device=x.device)
+        h = self.encoder(x, num_frames=num_frames, image_only_indicator=image_only_indicator)
         moments = self.quant_conv(h)
         posterior = DiagonalGaussianDistribution(moments)
 
@@ -763,7 +770,8 @@ class AutoencoderKLTemporal(ModelMixin, ConfigMixin):
         image_only_indicator = torch.zeros(batch_size, num_frames, dtype=z.dtype, device=z.device)
         z = self.post_quant_conv(z)
         decoded = self.decoder(z, num_frames=num_frames, image_only_indicator=image_only_indicator)
-
+        batch_frames, channels, height, width = decoded.shape
+        decoded = decoded[None, ...].reshape(batch_size, num_frames, channels, height, width)
         if not return_dict:
             return (decoded,)
 
@@ -786,7 +794,7 @@ class AutoencoderKLTemporal(ModelMixin, ConfigMixin):
                 Whether or not to return a [`DecoderOutput`] instead of a plain tuple.
         """
         x = sample
-        posterior = self.encode(x).latent_dist
+        posterior = self.encode(x, num_frames=num_frames).latent_dist
         if sample_posterior:
             z = posterior.sample(generator=generator)
         else:
